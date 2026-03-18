@@ -77,7 +77,7 @@ NGINX_PORT=80
 | Образ | Версия |
 |---|---|
 | MinIO | RELEASE.2024-02-17T01-15-57Z |
-| OnlyOffice Document Server | 8.0.1 |
+| OnlyOffice Document Server | 9.3 |
 | Nginx | 1.27.0 |
 
 Перед началом работы выполните команду `dotnet ef database update`
@@ -162,7 +162,7 @@ NGINX_PORT=80
 | Образ | Нұсқасы  |
 |---|---|
 | MinIO | RELEASE.2024-02-17T01-15-57Z |
-| OnlyOffice Document Server | 8.0.1 |
+| OnlyOffice Document Server | 9.3 |
 | Nginx | 1.27.0 |
 
 Жұмысты бастамас бұрын `dotnet ef database update` командасын іске қосыңыз 

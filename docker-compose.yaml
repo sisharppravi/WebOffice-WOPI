@@ -15,7 +15,7 @@ services:
       - minio-data:/data  
 
   onlyoffice:
-    image: onlyoffice/documentserver:8.0.1
+    image: onlyoffice/documentserver:9.3 # Обновил по правкам до 9.3
     container_name: onlyoffice
     ports:
       - "8080:80"  # Server acess
