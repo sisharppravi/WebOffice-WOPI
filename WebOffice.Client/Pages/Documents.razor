@@ -1,0 +1,154 @@
+@page "/documents"
+@using WebOffice.Client.Services   @* ← обязательно для AuthService *@
+@inject HttpClient HttpClient
+@inject AuthService AuthSvc
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<h3>Мои документы</h3>
+
+<div class="documents-toolbar mb-3">
+    <input @bind="newFileName" placeholder="Введите название документа (например: report.docx)"
+           class="form-control" />
+    <button class="btn btn-primary" @onclick="CreateDocument">Создать документ</button>
+</div>
+
+@if (loading)
+{
+    <p>Загрузка...</p>
+}
+else if (files.Count == 0)
+{
+    <p class="text-muted">Документы отсутствуют. Создайте первый!</p>
+}
+else
+{
+    <table class="table table-striped documents-table">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var file in files)
+            {
+                <tr>
+                    <td>@file</td>
+                    <td>
+                        <button class="btn btn-sm btn-success me-2" @onclick="() => EditDocument(file)">Изменить</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteDocument(file)">Удалить</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger mt-3">@errorMessage</div>
+}
+
+@code {
+    private List<string> files = new();
+    private string? newFileName;
+    private string? userId;
+    private bool loading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        userId = await AuthSvc.GetCurrentUserAsync();
+        if (string.IsNullOrEmpty(userId))
+        {
+            NavigationManager.NavigateTo("/");
+            return;
+        }
+
+        await LoadFiles();
+    }
+
+    private async Task LoadFiles()
+    {
+        try
+        {
+            errorMessage = null;
+            loading = true;
+            files = await HttpClient.GetFromJsonAsync<List<string>>($"api/storage/list?userId={userId}") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Не удалось загрузить список: {ex.Message}\nПроверь, запущен ли API на https://localhost:7130";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateDocument()
+    {
+        if (string.IsNullOrWhiteSpace(newFileName)) return;
+
+        try
+        {
+            var response = await HttpClient.PostAsync($"api/storage/create?userId={userId}&fileName={newFileName}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                files.Add(newFileName!);
+                newFileName = string.Empty;
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = $"Ошибка создания: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteDocument(string file)
+    {
+        try
+        {
+            var response = await HttpClient.DeleteAsync($"api/storage/delete?userId={userId}&fileName={file}");
+            if (response.IsSuccessStatusCode)
+            {
+                files.Remove(file);
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = $"Не удалось удалить: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task EditDocument(string file)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                NavigationManager.NavigateTo("/");
+                return;
+            }
+
+            var url = $"/editor?userId={Uri.EscapeDataString(userId)}&fileName={Uri.EscapeDataString(file)}";
+            await JS.InvokeVoidAsync("openDocumentEditor", url);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка открытия редактора: {ex.Message}";
+        }
+    }
+}

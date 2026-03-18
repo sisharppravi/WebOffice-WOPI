@@ -1,0 +1,220 @@
+@page "/register"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<PageTitle>Register / Login</PageTitle>
+
+<h3>@(showLogin ? "Login" : "Register")</h3>
+
+<div class="mb-3">
+    <button class="btn btn-outline-secondary me-2" @onclick="() => ToggleMode(false)" disabled="@(!showLogin)">Register</button>
+    <button class="btn btn-outline-secondary" @onclick="() => ToggleMode(true)" disabled="@(showLogin)">Login</button>
+</div>
+
+@if (statusCode != null)
+{
+    <div class="alert alert-info">HTTP Status: <strong>@statusCode</strong></div>
+}
+
+@if (responseBody != null)
+{
+    <div class="alert alert-secondary"><pre>@responseBody</pre></div>
+}
+
+@if (token != null)
+{
+    <div class="alert alert-warning">Saved token: <code>@token</code></div>
+}
+
+@if (successMessage != null)
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (!showLogin)
+{
+    <EditForm Model="registerModel" OnValidSubmit="HandleRegisterSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Login</label>
+            <InputText class="form-control" @bind-Value="registerModel.Login" />
+            <ValidationMessage For="() => registerModel.Login" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <InputText type="password" class="form-control" @bind-Value="registerModel.Password" />
+            <ValidationMessage For="() => registerModel.Password" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Register</button>
+    </EditForm>
+}
+else
+{
+    <EditForm Model="loginModel" OnValidSubmit="HandleLoginSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Login</label>
+            <InputText class="form-control" @bind-Value="loginModel.Login" />
+            <ValidationMessage For="() => loginModel.Login" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <InputText type="password" class="form-control" @bind-Value="loginModel.Password" />
+            <ValidationMessage For="() => loginModel.Password" />
+        </div>
+
+        <button type="submit" class="btn btn-success">Login</button>
+    </EditForm>
+}
+
+@code {
+    private const string ApiBase = "/api/"; // через Nginx прокси
+    private RegisterModel registerModel = new();
+    private LoginModel loginModel = new();
+    private string? successMessage;
+    private string? errorMessage;
+    private int? statusCode;
+    private string? responseBody;
+    private string? token;
+    private bool showLogin = false;
+
+    private void ToggleMode(bool toLogin)
+    {
+        showLogin = toLogin;
+        ClearMessages();
+    }
+
+    private async Task HandleRegisterSubmit()
+    {
+        ClearMessages();
+        try
+        {
+            var resp = await Http.PostAsJsonAsync($"{ApiBase}auth/register", registerModel);
+            statusCode = (int)resp.StatusCode;
+            responseBody = await resp.Content.ReadAsStringAsync();
+
+            if (resp.IsSuccessStatusCode)
+            {
+                successMessage = "Registration successful. Redirecting to login...";
+                registerModel = new RegisterModel();
+                showLogin = true;
+            }
+            else
+            {
+                errorMessage = $"Registration failed (HTTP {statusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task HandleLoginSubmit()
+    {
+        ClearMessages();
+        try
+        {
+            var resp = await Http.PostAsJsonAsync($"{ApiBase}auth/login", loginModel);
+            statusCode = (int)resp.StatusCode;
+            responseBody = await resp.Content.ReadAsStringAsync();
+
+            if (resp.IsSuccessStatusCode)
+            {
+                // Извлекаем токен из ответа
+                using var doc = System.Text.Json.JsonDocument.Parse(responseBody ?? "{}");
+                if (doc.RootElement.TryGetProperty("token", out var tokenElement))
+                {
+                    token = tokenElement.GetString();
+
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        // Сохраняем токен в localStorage
+                        await JS.InvokeVoidAsync("localStorage.setItem", "authToken", token);
+
+                        // Извлекаем userId из JWT (sub)
+                        var payload = ParseJwtPayload(token);
+                        if (payload.TryGetValue("sub", out var userId))
+                        {
+                            await JS.InvokeVoidAsync("localStorage.setItem", "userId", userId);
+                        }
+
+                        successMessage = "Login successful. Redirecting to documents...";
+                        loginModel = new LoginModel();
+
+                        // Редирект на страницу документов
+                        NavigationManager.NavigateTo("/documents", true);
+                        return;
+                    }
+                }
+
+                successMessage = "Login successful, but token not found.";
+            }
+            else
+            {
+                errorMessage = $"Login failed (HTTP {statusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+        statusCode = null;
+        responseBody = null;
+        token = null;
+    }
+
+    /// <summary>
+    /// Извлекает payload JWT и возвращает словарь
+    /// </summary>
+    private static Dictionary<string, string> ParseJwtPayload(string jwt)
+    {
+        var parts = jwt.Split('.');
+        if (parts.Length != 3) return new();
+
+        string payload = parts[1];
+        payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+        var bytes = Convert.FromBase64String(payload);
+        var json = System.Text.Json.JsonDocument.Parse(bytes);
+        return json.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "");
+    }
+
+    public class RegisterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Login { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+    }
+
+    public class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Login { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+    }
+}

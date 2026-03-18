@@ -1,0 +1,18 @@
+.documents-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.documents-toolbar .form-control {
+    min-width: 260px;
+    max-width: 520px;
+}
+
+.documents-table {
+    background: #fff;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+

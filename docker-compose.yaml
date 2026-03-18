@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-02-17T01-15-57Z
+    container_name: minio
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data  
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.0.1
+    container_name: onlyoffice
+    ports:
+      - "8080:80"  # Server acess
+    environment:
+      JWT_ENABLED: true
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      WOPI_ENABLED: true  
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+
+  nginx:
+    image: nginx:1.27.0
+    container_name: nginx-proxy
+    ports:
+      - "${NGINX_PORT}:80"  
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro 
+    depends_on:
+      - minio
+      - onlyoffice
+
+volumes:
+  minio-data:
+  onlyoffice-data:

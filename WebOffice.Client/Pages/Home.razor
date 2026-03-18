@@ -1,0 +1,225 @@
+﻿@page "/"
+@using WebOffice.Client.Services
+@inject AuthService AuthSvc
+@inject NavigationManager NavigationManager
+
+<PageTitle>Register / Login</PageTitle>
+
+<div class="auth-page">
+    @if (!string.IsNullOrEmpty(_currentUser))
+    {
+        <div class="text-center auth-panel">
+            <h3>Welcome, @_currentUser</h3>
+            <p>You are logged in.</p>
+            <button class="btn btn-primary me-2" @onclick="GoToDocuments">Перейти к документам</button>
+            <button class="btn btn-outline-danger" @onclick="Logout">Logout</button>
+        </div>
+    }
+    else
+    {
+        <h3 class="mb-3">@(_showLogin ? "Login" : "Register")</h3>
+
+        <div class="mb-3 text-center">
+            <button class="btn btn-outline-secondary me-2" @onclick="() => ToggleMode(false)" disabled="@(!_showLogin)">Register</button>
+            <button class="btn btn-outline-secondary" @onclick="() => ToggleMode(true)" disabled="@(_showLogin)">Login</button>
+        </div>
+
+        <div class="auth-panel">
+            @if (!_showLogin)
+            {
+                <EditForm Model="_registerModel" OnValidSubmit="HandleRegisterSubmit">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3">
+                        <label class="form-label">Login</label>
+                        <InputText class="form-control" @bind-Value="_registerModel.Login" />
+                        <ValidationMessage For="() => _registerModel.Login" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="_registerModel.Password" />
+                        <ValidationMessage For="() => _registerModel.Password" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Register</button>
+                </EditForm>
+            }
+            else
+            {
+                <EditForm Model="_loginModel" OnValidSubmit="HandleLoginSubmit">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3">
+                        <label class="form-label">Login</label>
+                        <InputText class="form-control" @bind-Value="_loginModel.Login" />
+                        <ValidationMessage For="() => _loginModel.Login" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="_loginModel.Password" />
+                        <ValidationMessage For="() => _loginModel.Password" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </EditForm>
+            }
+
+            @if (_statusCode != null || !string.IsNullOrEmpty(_responseBody))
+            {
+                <div class="mt-3 w-100">
+                    <div><strong>HTTP status:</strong> @_statusCode</div>
+                    <div class="mt-2"><strong>Response body:</strong></div>
+                    <pre class="response-box">@(_responseBody ?? "")</pre>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_successMessage))
+            {
+                <div class="alert alert-success mt-2">@_successMessage</div>
+            }
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger mt-2">@_errorMessage</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private RegisterModel _registerModel = new();
+    private LoginModel _loginModel = new();
+    private string? _successMessage;
+    private string? _errorMessage;
+    private int? _statusCode;
+    private string? _responseBody;
+    private string? _token;
+    private bool _showLogin = true;
+    private string? _currentUser;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _currentUser = await AuthSvc.GetCurrentUserAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleMode(bool toLogin)
+    {
+        _showLogin = toLogin;
+        ClearMessages();
+    }
+
+    private async Task HandleRegisterSubmit()
+    {
+        ClearMessages();
+        try
+        {
+            var (status, body) = await AuthSvc.RegisterAsync(new AuthService.RegisterModel 
+            { 
+                Login = _registerModel.Login, 
+                Password = _registerModel.Password 
+            });
+            _statusCode = status;
+            _responseBody = body;
+
+            if (status >= 200 && status < 300)
+            {
+                _successMessage = "Registration successful. You can now login.";
+                _registerModel = new RegisterModel();
+            }
+            else
+            {
+                _errorMessage = $"Registration failed (HTTP {_statusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task HandleLoginSubmit()
+    {
+        ClearMessages();
+        try
+        {
+            var (status, body, token) = await AuthSvc.LoginAsync(new AuthService.LoginModel 
+            { 
+                Login = _loginModel.Login, 
+                Password = _loginModel.Password 
+            });
+
+            _statusCode = status;
+            _responseBody = body;
+
+            if (status >= 200 && status < 300)
+            {
+                _token = token;
+                _currentUser = _loginModel.Login;
+                _successMessage = "Login successful.";
+
+                _loginModel = new LoginModel();
+
+                // === РЕДИРЕКТ СРАЗУ ПОСЛЕ УСПЕШНОГО ЛОГИНА ===
+                NavigationManager.NavigateTo("/documents");
+            }
+            else
+            {
+                _errorMessage = $"Login failed (HTTP {_statusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task Logout()
+    {
+        await AuthSvc.LogoutAsync();
+        _currentUser = null;
+        ClearMessages();
+        StateHasChanged();
+    }
+
+    private void GoToDocuments()
+    {
+        NavigationManager.NavigateTo("/documents");
+    }
+
+    private void ClearMessages()
+    {
+        _successMessage = null;
+        _errorMessage = null;
+        _statusCode = null;
+        _responseBody = null;
+        _token = null;
+    }
+
+    public class RegisterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Login { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+    }
+
+    public class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Login { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+    }
+}

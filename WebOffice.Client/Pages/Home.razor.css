@@ -1,0 +1,23 @@
+.auth-page {
+    min-height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.auth-panel {
+    width: 100%;
+    max-width: 360px;
+}
+
+.response-box {
+    white-space: pre-wrap;
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    max-height: 220px;
+    overflow: auto;
+}
+

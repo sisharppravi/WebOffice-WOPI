@@ -1,0 +1,37 @@
+# IDE / редакторы
+.vs/
+.vscode/
+.idea/
+.rider/
+
+# Сборочные артефакты
+bin/
+obj/
+**/bin/
+**/obj/
+[Dd]ebug/
+[Rr]elease/
+
+# Целевые фреймворки
+**/net9.0/
+
+# Файлы окружения и логи
+.env
+.env.local
+.env.*.local
+*.log
+*.tmp
+*.temp
+
+# Пользовательские/временные файлы
+*.user
+*.suo
+*.pdb
+*.dll
+
+
+WebOffice.Api/users.db
+
+*.db
+*.sqlite
+*.sqlite3

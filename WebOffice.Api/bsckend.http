@@ -1,0 +1,6 @@
+@bsckend_HostAddress = http://localhost:5288
+
+GET {{bsckend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
