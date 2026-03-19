@@ -16,46 +16,18 @@ namespace bsckend.Controllers;
 [Route("api/[controller]")]
 public class StorageController : ControllerBase
 {
-    private const string BucketName = "documents";
-
     private readonly IMinioClient _minioClient;
     private readonly ILogger<StorageController> _logger;
     private readonly IConfiguration _configuration;
+    private readonly string _bucketName;
 
     public StorageController(IMinioClient minioClient, ILogger<StorageController> logger, IConfiguration configuration)
     {
         _minioClient = minioClient;
         _logger = logger;
         _configuration = configuration;
-    }
-
-    [HttpPost("init")]
-    public async Task<IActionResult> InitializeStorage()
-    {
-        try
-        {
-            _logger.LogInformation("Initializing storage bucket: {Bucket}", BucketName);
-
-            var existsArgs = new BucketExistsArgs().WithBucket(BucketName);
-            bool found = await _minioClient.BucketExistsAsync(existsArgs);
-
-            if (!found)
-            {
-                var makeArgs = new MakeBucketArgs().WithBucket(BucketName);
-                await _minioClient.MakeBucketAsync(makeArgs);
-
-                _logger.LogInformation("Bucket {Bucket} created successfully", BucketName);
-                return Ok($"Бакет '{BucketName}' успешно создан.");
-            }
-
-            _logger.LogInformation("Bucket {Bucket} already exists", BucketName);
-            return Ok($"Бакет '{BucketName}' уже существует.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error initializing bucket {Bucket}", BucketName);
-            return BadRequest($"Ошибка при связи с MinIO: {ex.Message}");
-        }
+        _bucketName = _configuration["MinIO:Bucket"]
+                      ?? throw new InvalidOperationException("MinIO:Bucket is not configured");
     }
 
     [HttpPost("upload")]
@@ -81,7 +53,7 @@ public class StorageController : ControllerBase
             using var stream = file.OpenReadStream();
 
             var putObjectArgs = new PutObjectArgs()
-                .WithBucket(BucketName)
+                .WithBucket(_bucketName)
                 .WithObject(objectName)
                 .WithStreamData(stream)
                 .WithObjectSize(file.Length)
@@ -117,7 +89,7 @@ public class StorageController : ControllerBase
             var memoryStream = new MemoryStream();
 
             var getObjectArgs = new GetObjectArgs()
-                .WithBucket(BucketName)
+                .WithBucket(_bucketName)
                 .WithObject(objectName)
                 .WithCallbackStream(stream => stream.CopyTo(memoryStream));
 
@@ -209,7 +181,7 @@ public class StorageController : ControllerBase
                 memoryStream.Position = 0;
 
                 var putObjectArgs = new PutObjectArgs()
-                    .WithBucket(BucketName)
+                    .WithBucket(_bucketName)
                     .WithObject(objectName)
                     .WithStreamData(memoryStream)
                     .WithObjectSize(memoryStream.Length)
@@ -411,7 +383,7 @@ public class StorageController : ControllerBase
             var objects = new List<string>();
 
             var args = new ListObjectsArgs()
-                .WithBucket(BucketName)
+                .WithBucket(_bucketName)
                 .WithPrefix($"{userId}/")
                 .WithRecursive(true);
 
@@ -473,7 +445,7 @@ public class StorageController : ControllerBase
             using var stream = new MemoryStream(fileBytes);
 
             var args = new PutObjectArgs()
-                .WithBucket(BucketName)
+                .WithBucket(_bucketName)
                 .WithObject(objectName)
                 .WithStreamData(stream)
                 .WithObjectSize(stream.Length)
@@ -549,7 +521,7 @@ public class StorageController : ControllerBase
             string objectName = $"{userId}/{fileName}";
 
             var removeArgs = new RemoveObjectArgs()
-                .WithBucket("documents")
+                .WithBucket(_bucketName)
                 .WithObject(objectName);
 
             await _minioClient.RemoveObjectAsync(removeArgs);

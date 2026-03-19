@@ -19,7 +19,6 @@ builder.Services
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-// CORS - разрешаем запросы с клиентского приложения (для разработки)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -30,10 +29,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// JWT Configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey))
+{
     throw new InvalidOperationException("JWT Key is not configured in appsettings.json");
+}
 
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -64,25 +64,42 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var minioEndpointValue = builder.Configuration["MinIO:Endpoint"]
+                         ?? throw new InvalidOperationException("MinIO:Endpoint is not configured");
+var minioAccessKey = builder.Configuration["MinIO:AccessKey"]
+                     ?? throw new InvalidOperationException("MinIO:AccessKey is not configured");
+var minioSecretKey = builder.Configuration["MinIO:SecretKey"]
+                     ?? throw new InvalidOperationException("MinIO:SecretKey is not configured");
+var minioUri = Uri.TryCreate(minioEndpointValue, UriKind.Absolute, out var parsedMinioUri)
+    ? parsedMinioUri
+    : null;
+var minioEndpoint = minioUri is not null
+    ? minioUri.Authority
+    : minioEndpointValue;
+var useMinioSsl = minioUri?.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) == true;
+
 builder.Services.AddMinio(configureSource => configureSource
-    .WithEndpoint("localhost:9000")
-    .WithCredentials("admin", "admin123") // Твой новый пароль из .env
-    .WithSSL(false));
+    .WithEndpoint(minioEndpoint)
+    .WithCredentials(minioAccessKey, minioSecretKey)
+    .WithSSL(useMinioSsl));
 
 var app = builder.Build();
 
-// Применить миграции при запуске
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var services = scope.ServiceProvider;
+    var db = services.GetRequiredService<ApplicationDbContext>();
+    var minioClient = services.GetRequiredService<IMinioClient>();
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
     await DatabaseInitializer.InitializeAsync(db);
+    await StorageInitializer.InitializeAsync(minioClient, builder.Configuration, logger);
 }
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseRouting();
-// Включаем CORS (используем политику AllowAll)
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
