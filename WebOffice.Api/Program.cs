@@ -1,7 +1,6 @@
 using bsckend.Repository;
 using bsckend.Models.User;
 using bsckend.Services;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -58,6 +57,8 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddSingleton<IWopiLockService, WopiLockService>();
+builder.Services.AddScoped<IWopiTokenService, WopiTokenService>();
 
 builder.Services.AddControllers();
 

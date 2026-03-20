@@ -2,7 +2,6 @@
 @layout EditorLayout
 @inject HttpClient HttpClient
 @inject IJSRuntime JS
-@using System.Text.Json
 
 <PageTitle>OnlyOffice Editor</PageTitle>
 
@@ -15,8 +14,10 @@
     {
         <p class="m-3">Загрузка редактора...</p>
     }
-
-    <div id="editor" class="editor-host"></div>
+    else if (!string.IsNullOrWhiteSpace(_launchUrl))
+    {
+        <p class="m-3">Открываем редактор...</p>
+    }
 </div>
 
 @code {
@@ -28,14 +29,20 @@
 
     private bool _loading = true;
     private string? _errorMessage;
+    private string? _launchUrl;
+    private string? _accessToken;
+    private long _accessTokenTtl;
+    private bool _submitted;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private sealed class WopiLaunchResponse
     {
-        if (!firstRender)
-        {
-            return;
-        }
+        public string? LaunchUrl { get; set; }
+        public string? AccessToken { get; set; }
+        public long AccessTokenTtl { get; set; }
+    }
 
+    protected override async Task OnInitializedAsync()
+    {
         try
         {
             if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(FileName))
@@ -43,14 +50,16 @@
                 throw new InvalidOperationException("Не переданы параметры userId или fileName.");
             }
 
-            var url = $"api/storage/editor-config?userId={Uri.EscapeDataString(UserId)}&fileName={Uri.EscapeDataString(FileName)}";
-            var editorConfig = await HttpClient.GetFromJsonAsync<JsonElement>(url);
-            if (editorConfig.ValueKind != JsonValueKind.Object)
+            var url = $"wopi/editor-launch?userId={Uri.EscapeDataString(UserId)}&fileName={Uri.EscapeDataString(FileName)}";
+            var launch = await HttpClient.GetFromJsonAsync<WopiLaunchResponse>(url);
+            if (string.IsNullOrWhiteSpace(launch?.LaunchUrl))
             {
-                throw new InvalidOperationException("Не удалось получить конфигурацию редактора.");
+                throw new InvalidOperationException("Не удалось получить WOPI launch URL.");
             }
 
-            await JS.InvokeVoidAsync("openEditor", editorConfig);
+            _launchUrl = launch.LaunchUrl;
+            _accessToken = launch.AccessToken;
+            _accessTokenTtl = launch.AccessTokenTtl;
         }
         catch (Exception ex)
         {
@@ -59,8 +68,18 @@
         finally
         {
             _loading = false;
-            StateHasChanged();
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_submitted || string.IsNullOrWhiteSpace(_launchUrl) || string.IsNullOrWhiteSpace(_accessToken))
+        {
+            return;
+        }
+
+        _submitted = true;
+        await JS.InvokeVoidAsync("submitWopiPost", _launchUrl, _accessToken, _accessTokenTtl);
     }
 
 }

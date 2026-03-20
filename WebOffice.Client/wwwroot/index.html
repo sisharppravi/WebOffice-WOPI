@@ -15,32 +15,32 @@
         <div class="loading">Загрузка...</div>
     </div>
 
-    <!-- ==================== ONLYOFFICE ==================== -->
-    <!-- Меняй порт 8080 на тот, который указал в docker run -->
-    <script type="text/javascript" src="http://localhost:8080/web-apps/apps/api/documents/api.js"></script>
-
     <script>
         window.openDocumentEditor = function (url) {
             window.open(url, "_blank", "noopener,noreferrer");
         };
 
-        // Глобальная функция, которую вызывает Blazor
-        window.openEditor = function (config) {
-            if (!window.DocsAPI) {
-                console.error("DocsAPI не загружен!");
-                return;
-            }
+        window.submitWopiPost = function (actionUrl, accessToken, accessTokenTtl) {
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = actionUrl;
 
-            new DocsAPI.DocEditor("editor", {
-                document: config.document,
-                documentType: config.documentType || "word",
-                editorConfig: config.editorConfig,
-                token: config.token,
-                height: "800px"
-            });
+            const tokenInput = document.createElement("input");
+            tokenInput.type = "hidden";
+            tokenInput.name = "access_token";
+            tokenInput.value = accessToken;
+
+            const ttlInput = document.createElement("input");
+            ttlInput.type = "hidden";
+            ttlInput.name = "access_token_ttl";
+            ttlInput.value = String(accessTokenTtl ?? 0);
+
+            form.appendChild(tokenInput);
+            form.appendChild(ttlInput);
+            document.body.appendChild(form);
+            form.submit();
         };
     </script>
-    <!-- ==================================================== -->
 
     <script src="_framework/blazor.webassembly.js"></script>
 </body>
