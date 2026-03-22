@@ -7,10 +7,10 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// === ГЛАВНОЕ ИСПРАВЛЕНИЕ: HttpClient теперь указывает на твой API ===
+// === ГЛАВНОЕ ИСПРАВЛЕНИЕ: HttpClient теперь указывает API ===
 builder.Services.AddScoped(sp => new HttpClient 
 { 
-    BaseAddress = new Uri("https://localhost:7130")   // ← поменяй порт, если у тебя другой (смотри launchSettings.json в WebOffice.Api)
+    BaseAddress = new Uri("https://localhost:7130")
 });
 
 builder.Services.AddScoped<AuthService>();

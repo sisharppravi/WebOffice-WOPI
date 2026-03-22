@@ -328,7 +328,7 @@ public class WopiController : ControllerBase
             return BadRequest("X-WOPI-Lock is required.");
         }
 
-        // WOPI allows replacing lock when old lock is provided and matches current one.
+        // WOPI всегда отправляет X-WOPI-OldLock, даже если его значение пустое. Поэтому проверяем отдельно на null/whitespace.
         if (!string.IsNullOrWhiteSpace(oldLockValue))
         {
             if (_lockService.TryUnlock(fileId, oldLockValue, out var unlockExisting))

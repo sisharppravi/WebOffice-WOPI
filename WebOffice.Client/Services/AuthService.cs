@@ -7,7 +7,7 @@ public class AuthService
 {
     private readonly HttpClient _http;
     private readonly IJSRuntime _js;
-    private const string ApiBase = "https://localhost:7130/"; // поменяйте при необходимости
+    private const string ApiBase = "https://localhost:7130/"; // Адрес API, должен совпадать с настройкой в Program.cs
     private string? _currentUser;
 
     public AuthService(HttpClient http, IJSRuntime js)
